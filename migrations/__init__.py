@@ -1,119 +1,30 @@
-#coding:utf-8
+# #coding:utf-8
 
-import logging
-import traceback
-import pickle
+# import logging
+# import traceback
+# import pickle
 
-from google.appengine.api import taskqueue, namespace_manager
-from google.appengine.api.taskqueue.taskqueue import TaskRetryOptions
-from google.appengine.ext.ndb import Cursor
-from google.appengine.ext.db.metadata import Namespace, get_namespaces
+# from google.appengine.api import taskqueue, namespace_manager
+# from google.appengine.api.taskqueue.taskqueue import TaskRetryOptions
+# from google.appengine.ext.ndb import Cursor
+# from google.appengine.ext.db.metadata import Namespace, get_namespaces
 
-from migrations.model import DBMigrationLog
-
-__author__ = 'tony'
-
-NO_RETRY = TaskRetryOptions(task_retry_limit=1)
+# from migrations.model import DBMigrationLog
 
 
-def enqueue_next_task(tasks):
-    migrated_names = DBMigrationLog.last_1000_names_done_or_running()
-    for task in tasks:
-        if not task.get_migration_name() in migrated_names:
-            task.start()
-            break
+# NO_RETRY = TaskRetryOptions(task_retry_limit=1)
 
-def enqueue_migration(cursor_state={}):
-    migration_path = ''
-    migration.start(cursor_state)
+
+
 
 
 # não serializar, pegar o self.name e importar dinamicamente
-
-class AbstractMigrationTask():
-    def __init__(self):
-        self.migration_query = self.get_query()
-        self.name = self.get_name()
-
-    def migration_path():
-        return NotImplemented
-
-    def fetch(self, cursor_urlsafe, namespace_index):
-        query_ns = get_namespaces(self.namespace_index)
-
-        if query_ns != namespace_manager.get_namespace():
-            namespace_manager.set_namespace(query_ns)
-
-        cursor = cursor_urlsafe and Cursor(urlsafe=cursor_urlsafe)
-        result, cursor, more = self.migration_query().fetch(1000, cursor=cursor)
-        return result, cursor.urlsafe(), more
-
-
-    def start(self, cursor_state):
-        cursor_urlsafe = cursor_state.get('cursor_urlsafe', None)
-        namespace_index = cursor_state.get('namespace_index', 0)
-
-        entities, cursor, more = self.fetch(cursor_urlsafe, namespace_index)
-
-        for entity in entities:
-            try:
-                self.migrate_one(entity)
-            except Exception, e:
-                error_msg = 'error migrating on namespace %s: %s' % (self.namespace, entity.key)
-                self.stop_with_error(error_msg, e)
-        
-        if more:
-            task_params = {
-                'migration_pickle_object': pickle.dumps(self),
-                'cursor_state': {
-                    'cursor_urlsafe': cursor_urlsafe,
-                    'namespace_index': self.namespace_index
-                }
-            }
-
-            tasks.enqueue(enqueue_migration, task_params)
-
-        elif self.namespace_index > len(get_namespaces()):
-            task_params = {
-                migration_pickle_object: pickle.dumps(self),
-                cursor_state: {
-                    cursor_urlsafe: cursor_urlsafe,
-                    namespace_index: self.namespace_index + 1
-                }
-            }
-
-            tasks.enqueue(enqueue_migration, task_params)
-
-        else:   
-            self.finish_migration()
-            self.enqueue_next_migration()
-
-
-    def enqueue_next_migration(self):
-        from migrations import migrations_enqueuer
-        migrations_enqueuer.enqueue_next_migration_task()
-
-    def stop_with_error(self, error_msg, exception):
-        stacktrace = exception.format_exc()
-        DBMigrationLog.error(self.name, error_msg, stacktrace)
-        logging.error(err)
-        raise MigrationException(exception)
-
-    def finish_migration(self):
-        DBMigrationLog.finish_migration(self.name)
-        logging.info('end of migration %s on empty namespace' % self.name)
-        
-
-
-
-
-
 
 
 
 
 # class AbstractMigrationTaskOnEmptyNamespace(QMHandler):
-    
+
 
 #     def enqueue_first_task(self):
 #         name = self.get_migration_name()

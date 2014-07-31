@@ -1,1 +1,3 @@
-migrations_list = []
+TASKS_QUEUE = "DEFAULT"
+TASKS_RUNNER_URL = '/'
+MIGRATIONS_LIST = []
