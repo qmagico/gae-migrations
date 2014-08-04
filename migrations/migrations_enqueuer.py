@@ -1,4 +1,3 @@
-import migrations
 from importlib import import_module
 from migrations.settings import MIGRATIONS_LIST
 from migrations.model import DBMigrationLog
@@ -12,6 +11,7 @@ def get_instance(module_str):
 def get_all_migrations():
     return [get_instance(".".join([MIGRATIONS_LIST.__package__, m]))
             for m in MIGRATIONS_LIST]
+
 
 def enqueue_next_migration(migrations=get_all_migrations()):
     migrated_names = DBMigrationLog.last_1000_names_done_or_running()

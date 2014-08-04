@@ -1,6 +1,5 @@
 import time
 import logging
-import pickle
 import sys
 
 from importlib import import_module
@@ -137,8 +136,8 @@ class AbstractMigrationTask():
             }
 
             task_enqueuer.enqueue(AbstractMigrationTask.enqueue_migration, task_params)
-        
-        else:    
+
+        else:
             self.finish_migration()
             self.enqueue_next_migration()
 
