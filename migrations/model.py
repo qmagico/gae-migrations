@@ -5,14 +5,15 @@ import sys
 from importlib import import_module
 from google.appengine.api import namespace_manager
 from google.appengine.ext import ndb
-# from google.appengine.api.taskqueue.taskqueue import TaskRetryOptions
+from google.appengine.api.taskqueue.taskqueue import TaskRetryOptions
 from google.appengine.ext.ndb import Cursor
 from google.appengine.ext.db.metadata import get_namespaces
-from migrations import task_enqueuer
+from migrations import task_enqueuer, settings
 
 RUNNING = 'RUNNING'
 DONE = 'DONE'
 ERROR = 'ERROR'
+NO_RETRY = TaskRetryOptions(task_retry_limit=1)
 
 
 class MigrationException(BaseException):
@@ -119,7 +120,10 @@ class AbstractMigrationTask():
 
         task_params = {
             'migration_module': self.get_migration_module(),
-            'cursor_state': {}
+            'cursor_state': {},
+            'task_url': settings.TASKS_RUNNER_URL,
+            'task_queue_name': settings.MIGRATIONS_QUEUE_NAME,
+            'task_retry_options': NO_RETRY
         }
 
         if more:

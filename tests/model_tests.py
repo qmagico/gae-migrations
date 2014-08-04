@@ -179,5 +179,14 @@ class TestAbstrackMigration(GAETestCase):
         namespace_manager.set_namespace("namespace2")
         self.assertEqual(5, ModelToMigrate.count_migrated())
 
-        #asserting next migration will be executed
-        # enqueue_next_mock.enqueue_next_migration.assert_called()
+    @mock.patch('migrations.migrations_enqueuer.enqueue_next_migration')
+    def test_start_next_migration_after_finish(self, enqueue_next_mock):
+        for i in range(5):
+            mommy.save_one(ModelToMigrate)
+
+        migration = MigrationsMock()
+
+        migration.start({})
+        self.assertEqual(5, ModelToMigrate.count_migrated())
+
+        enqueue_next_mock.assert_any_call()
