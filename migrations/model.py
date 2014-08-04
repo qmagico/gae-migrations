@@ -1,11 +1,11 @@
 import time
-
-from google.appengine.api import namespace_manager
-from google.appengine.ext import ndb
-
 import logging
 import pickle
+import sys
 
+from importlib import import_module
+from google.appengine.api import namespace_manager
+from google.appengine.ext import ndb
 # from google.appengine.api.taskqueue.taskqueue import TaskRetryOptions
 from google.appengine.ext.ndb import Cursor
 from google.appengine.ext.db.metadata import get_namespaces
@@ -86,24 +86,23 @@ class AbstractMigrationTask():
         self.name = self.get_name()
 
     @classmethod
-    def enqueue_migration(cursor_state={}):
-        #cursor_state deve guardar nome da migration
-        #importar dinamocamente e rodar o start
-        # migration.start(cursor_state)
-        pass
+    def enqueue_migration(cls, params):
+        module = import_module(params['migration_module'])
+        migration = getattr(module, 'MyTask')()
+        migration.start(params['cursor_state'])
 
-    def migration_path():
-        return NotImplemented
+    def get_migration_module(self):
+        return sys.modules[self.__module__].__name__
 
     def fetch(self, cursor_urlsafe, namespace_index, size):
-        query_ns = get_namespaces(namespace_index)[0]
+        query_ns = get_namespaces()[namespace_index]
 
         if query_ns != namespace_manager.get_namespace():
             namespace_manager.set_namespace(query_ns)
 
         cursor = cursor_urlsafe and Cursor(urlsafe=cursor_urlsafe)
         result, cursor, more = self.migration_query.fetch_page(size, start_cursor=cursor)
-        return result, cursor.urlsafe(), more
+        return result, cursor, more
 
     def start(self, cursor_state):
         cursor_urlsafe = cursor_state.get('cursor_urlsafe', None)
@@ -119,31 +118,29 @@ class AbstractMigrationTask():
                 error_msg = 'error migrating on namespace %s: %s' % (self.namespace, entity.key)
                 self.stop_with_error(error_msg, e)
 
+        task_params = {
+            'migration_module': self.get_migration_module(),
+            'cursor_state': {}
+        }
+
         if more:
-            task_params = {
-                'migration_pickle_object': pickle.dumps(self),
-                'cursor_state': {
-                    'cursor_urlsafe': cursor_urlsafe,
-                    'namespace_index': namespace_index
-                }
+            task_params['cursor_state'] = {
+                'cursor_urlsafe': cursor and cursor.urlsafe(),
+                'namespace_index': namespace_index
             }
 
-            task_enqueuer.enqueue(self.enqueue_migration, task_params)
+            task_enqueuer.enqueue(AbstractMigrationTask.enqueue_migration, task_params)
 
-        elif namespace_index > len(get_namespaces()):
-            task_params = {
-                'migration_pickle_object': pickle.dumps(self),
-                'cursor_state': {
-                    'cursor_urlsafe': cursor_urlsafe,
-                    'namespace_index': namespace_index + 1
-                }
+        elif namespace_index < len(get_namespaces()) - 1:
+            task_params['cursor_state'] = {
+                'namespace_index': namespace_index + 1
             }
 
-            task_enqueuer.enqueue(self.enqueue_migration, task_params)
-
-        else:
+            task_enqueuer.enqueue(AbstractMigrationTask.enqueue_migration, task_params)
+        
+        else:    
             self.finish_migration()
-            # self.enqueue_next_migration()
+            self.enqueue_next_migration()
 
     def enqueue_next_migration(self):
         from migrations import migrations_enqueuer

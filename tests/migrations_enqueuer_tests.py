@@ -1,12 +1,14 @@
-from migrations import migrations_enqueuer
+import mock
 
+from migrations import migrations_enqueuer
 from test_utils import GAETestCase
 from model_tests import MigrationsMock
 
 
 class TestStartMigrations(GAETestCase):
     def test_enqueue_first_migration(self):
-        migrations_list = [MigrationsMock('migration_0000_mocked_migration')]
+        migrations_list =[MigrationsMock('migration_0000_mocked_migration')]
+
         migrations_enqueuer.enqueue_next_migration(migrations_list)
         self.assertTrue(migrations_list[0].executed)
 

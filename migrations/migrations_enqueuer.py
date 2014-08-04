@@ -9,14 +9,11 @@ def get_instance(module_str):
     return getattr(module, 'MyTask')()
 
 
-def run_migrations():
-    all_tasks = [get_instance(".".join([MIGRATIONS_LIST.__package__, m]))
-                 for m in MIGRATIONS_LIST.all_migrations]
+def get_all_migrations():
+    return [get_instance(".".join([MIGRATIONS_LIST.__package__, m]))
+            for m in MIGRATIONS_LIST]
 
-    migrations.enqueue_next_task(all_tasks)
-
-
-def enqueue_next_migration(migrations):
+def enqueue_next_migration(migrations=get_all_migrations()):
     migrated_names = DBMigrationLog.last_1000_names_done_or_running()
     for migration in migrations:
         if not migration.name in migrated_names:

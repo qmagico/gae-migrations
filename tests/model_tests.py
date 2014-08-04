@@ -1,31 +1,47 @@
+import mock
 import mommy
 
 from google.appengine.api import namespace_manager
-from test_utils import GAETestCase
+from google.appengine.ext import ndb
 from migrations.model import DBMigrationLog, AbstractMigrationTask, RUNNING, DONE, ERROR
+from test_utils import GAETestCase
+
+
+
+class ModelToMigrate(ndb.Model):
+    migrated = ndb.BooleanProperty(default=False)
+
+    @classmethod
+    def count_migrated(cls):
+        return cls.query(cls.migrated == True).count()
+ 
+
+class EnqueuerMock():
+    def __call__(self, method, task_params):
+        method(task_params)
 
 
 class MigrationsMock(AbstractMigrationTask):
     def __init__(self, name=''):
         self.name = name
         self.executed = False
-        self.migrate_entities = 0
         AbstractMigrationTask.__init__(self)
 
-    def start(self, cursor_state={}, testing_method=False):
+    def start(self, cursor_state={}):
         self.executed = True
-        if testing_method:
-            AbstractMigrationTask.start(self, cursor_state)
+        AbstractMigrationTask.start(self, cursor_state)
 
     def get_name(self):
         return self.name
 
     def get_query(self):
-        return DBMigrationLog.query()
+        return ModelToMigrate.query()
 
-    def migrate_one(self, *args):
-        self.migrate_entities += 1
+    def migrate_one(self, entity):
+        entity.migrated = True
+        entity.put()
 
+MyTask = MigrationsMock
 
 class TestDBMigrationLog(GAETestCase):
     def test_log_new_migration(self):
@@ -82,35 +98,35 @@ class TestDBMigrationLog(GAETestCase):
 
 
 class TestAbstrackMigration(GAETestCase):
-    def test_execute_query_on_selected_namespace(self):
+    def test_fetch_query_on_selected_namespace(self):
         namespace_manager.set_namespace("namespace1")
         for i in range(5):
-            mommy.save_one(DBMigrationLog)
+            mommy.save_one(ModelToMigrate)
 
         namespace_manager.set_namespace("namespace2")
         for i in range(5):
-            mommy.save_one(DBMigrationLog)
+            mommy.save_one(ModelToMigrate)
 
         migration = MigrationsMock()
-        result, cursor_urlsafe, more = migration.fetch(None, 0, size=3)
+        result, cursor, more = migration.fetch(None, 0, size=3)
 
         self.assertEqual(3, len(result))
-        self.assertEqual(str, type(cursor_urlsafe))
+        self.assertEqual(ndb.Cursor, type(cursor))
         self.assertTrue(more)
 
-        result, cursor_urlsafe, more = migration.fetch(cursor_urlsafe, 0, size=3)
+        result, cursor, more = migration.fetch(cursor.urlsafe(), 0, size=3)
         self.assertEqual(2, len(result))
-        self.assertEqual(str, type(cursor_urlsafe))
+        self.assertEqual(ndb.Cursor, type(cursor))
         self.assertFalse(more)
 
-        result, cursor_urlsafe, more = migration.fetch(None, 1, size=3)
+        result, cursor, more = migration.fetch(None, 1, size=3)
         self.assertEqual(3, len(result))
-        self.assertEqual(str, type(cursor_urlsafe))
+        self.assertEqual(ndb.Cursor, type(cursor))
         self.assertTrue(more)
 
-        result, cursor_urlsafe, more = migration.fetch(cursor_urlsafe, 0, size=3)
+        result, cursor, more = migration.fetch(cursor.urlsafe(), 1, size=3)
         self.assertEqual(2, len(result))
-        self.assertEqual(str, type(cursor_urlsafe))
+        self.assertEqual(ndb.Cursor, type(cursor))
         self.assertFalse(more)
 
     def test_start_migration_with_less_than_1000(self):
@@ -118,35 +134,37 @@ class TestAbstrackMigration(GAETestCase):
         cursor_state = {}
 
         for i in range(5):
-            mommy.save_one(DBMigrationLog)
+            mommy.save_one(ModelToMigrate)
 
         migration = MigrationsMock()
-        migration.start(cursor_state, testing_method=True)
+        migration.start(cursor_state)
 
-        self.assertEqual(5, migration.migrate_entities)
+        self.assertEqual(5, ModelToMigrate.count_migrated())
 
-    def test_start_migration_with_more_entities(self):
+    @mock.patch('migrations.task_enqueuer.enqueue', new_callable=EnqueuerMock)
+    def test_start_migration_with_more_entities(self, mock_enqueue):
         migration = MigrationsMock()
         cursor_state = {
             'size': 3
         }
 
         for i in range(5):
-            mommy.save_one(DBMigrationLog)
+            mommy.save_one(ModelToMigrate)
 
         migration = MigrationsMock()
-        migration.start(cursor_state, testing_method=True)
+        migration.start(cursor_state)
 
-        self.assertEqual(5, migration.migrate_entities)
+        self.assertEqual(5, ModelToMigrate.count_migrated())
 
-    def test_start_migration_with_more_namespaces(self):
+    @mock.patch('migrations.task_enqueuer.enqueue', new_callable=EnqueuerMock)
+    def test_start_migration_with_more_namespaces(self, mock_enqueue):
         namespace_manager.set_namespace("namespace1")
         for i in range(5):
-            mommy.save_one(DBMigrationLog)
+            mommy.save_one(ModelToMigrate)
 
         namespace_manager.set_namespace("namespace2")
         for i in range(5):
-            mommy.save_one(DBMigrationLog)
+            mommy.save_one(ModelToMigrate)
 
         migration = MigrationsMock()
         cursor_state = {
@@ -154,7 +172,12 @@ class TestAbstrackMigration(GAETestCase):
             'namespace_index': 0
         }
 
-        migration = MigrationsMock()
-        migration.start(cursor_state, testing_method=True)
+        migration.start(cursor_state)
+        namespace_manager.set_namespace("namespace1")
+        self.assertEqual(5, ModelToMigrate.count_migrated())
+        
+        namespace_manager.set_namespace("namespace2")
+        self.assertEqual(5, ModelToMigrate.count_migrated())
 
-        self.assertEqual(5, migration.migrate_entities)
+        #asserting next migration will be executed
+        # enqueue_next_mock.enqueue_next_migration.assert_called()
