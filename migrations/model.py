@@ -81,8 +81,9 @@ class DBMigrationLog(ndb.Model):
 
 
 class AbstractMigrationTask():
-    def __init__(self):
-        self.migration_query = self.get_query()
+    def __init__(self, empty_namespace=False):
+        self.empty_namespace = empty_namespace
+        self.migration_query = self.get_migration_query()
         self.name = self.get_name()
 
     @classmethod
@@ -94,11 +95,19 @@ class AbstractMigrationTask():
     def get_migration_module(self):
         return sys.modules[self.__module__].__name__
 
-    def fetch(self, cursor_urlsafe, namespace_index, size):
-        query_ns = get_namespaces()[namespace_index]
+    def get_namespace_by_index(self, namespace_index):
+        return get_namespaces()[namespace_index]
 
-        if query_ns != namespace_manager.get_namespace():
-            namespace_manager.set_namespace(query_ns)
+    def get_migration_query(self):
+        try:
+            return self.get_query()
+        except Exception, e:
+            error_msg = 'error getting query'
+            self.stop_with_error(error_msg, e)
+
+    def fetch(self, cursor_urlsafe, namespace, size):
+        if namespace != namespace_manager.get_namespace():
+            namespace_manager.set_namespace(namespace)
 
         cursor = cursor_urlsafe and Cursor(urlsafe=cursor_urlsafe)
         result, cursor, more = self.migration_query.fetch_page(size, start_cursor=cursor)
@@ -109,7 +118,12 @@ class AbstractMigrationTask():
         namespace_index = cursor_state.get('namespace_index', 0)
         size = cursor_state.get('size', 1000)
 
-        entities, cursor, more = self.fetch(cursor_urlsafe, namespace_index, size)
+        if self.empty_namespace:
+            namespace = ''
+        else:
+            namespace = self.get_namespace_by_index(namespace_index)
+
+        entities, cursor, more = self.fetch(cursor_urlsafe, namespace, size)
 
         for entity in entities:
             try:
@@ -134,7 +148,7 @@ class AbstractMigrationTask():
 
             task_enqueuer.enqueue(AbstractMigrationTask.enqueue_migration, task_params)
 
-        elif namespace_index < len(get_namespaces()) - 1:
+        elif namespace_index < len(get_namespaces()) - 1 and not self.empty_namespace:
             task_params['cursor_state'] = {
                 'namespace_index': namespace_index + 1
             }
@@ -158,3 +172,8 @@ class AbstractMigrationTask():
     def finish_migration(self):
         DBMigrationLog.finish_migration(self.name)
         logging.info('end of migration %s on empty namespace' % self.name)
+
+
+class AbstractMigrationTaskOnEmptyNamespace(AbstractMigrationTask):
+    def __init__(self):
+        AbstractMigrationTask.__init__(self, empty_namespace=True)

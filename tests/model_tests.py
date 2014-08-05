@@ -3,7 +3,7 @@ import mommy
 
 from google.appengine.api import namespace_manager
 from google.appengine.ext import ndb
-from migrations.model import DBMigrationLog, AbstractMigrationTask, RUNNING, DONE, ERROR
+from migrations.model import DBMigrationLog, AbstractMigrationTask, AbstractMigrationTaskOnEmptyNamespace, RUNNING, DONE, ERROR
 from test_utils import GAETestCase
 
 
@@ -22,10 +22,10 @@ class EnqueuerMock():
 
 
 class MigrationsMock(AbstractMigrationTask):
-    def __init__(self, name=''):
+    def __init__(self, name='', *args, **kwargs):
         self.name = name
         self.executed = False
-        AbstractMigrationTask.__init__(self)
+        AbstractMigrationTask.__init__(self, *args, **kwargs)
 
     def start(self, cursor_state={}):
         self.executed = True
@@ -40,6 +40,11 @@ class MigrationsMock(AbstractMigrationTask):
     def migrate_one(self, entity):
         entity.migrated = True
         entity.put()
+
+class MigrationsMockEmptyNamespace(MigrationsMock):
+    def __init__(self):
+        MigrationsMock.__init__(self, empty_namespace=True)
+
 
 MyTask = MigrationsMock
 
@@ -108,23 +113,23 @@ class TestAbstrackMigration(GAETestCase):
             mommy.save_one(ModelToMigrate)
 
         migration = MigrationsMock()
-        result, cursor, more = migration.fetch(None, 0, size=3)
+        result, cursor, more = migration.fetch(None, "namespace1", size=3)
 
         self.assertEqual(3, len(result))
         self.assertEqual(ndb.Cursor, type(cursor))
         self.assertTrue(more)
 
-        result, cursor, more = migration.fetch(cursor.urlsafe(), 0, size=3)
+        result, cursor, more = migration.fetch(cursor.urlsafe(), "namespace1", size=3)
         self.assertEqual(2, len(result))
         self.assertEqual(ndb.Cursor, type(cursor))
         self.assertFalse(more)
 
-        result, cursor, more = migration.fetch(None, 1, size=3)
+        result, cursor, more = migration.fetch(None, "namespace2", size=3)
         self.assertEqual(3, len(result))
         self.assertEqual(ndb.Cursor, type(cursor))
         self.assertTrue(more)
 
-        result, cursor, more = migration.fetch(cursor.urlsafe(), 1, size=3)
+        result, cursor, more = migration.fetch(cursor.urlsafe(), "namespace2", size=3)
         self.assertEqual(2, len(result))
         self.assertEqual(ndb.Cursor, type(cursor))
         self.assertFalse(more)
@@ -190,3 +195,24 @@ class TestAbstrackMigration(GAETestCase):
         self.assertEqual(5, ModelToMigrate.count_migrated())
 
         enqueue_next_mock.assert_any_call()
+
+class TestAbstractMigrationTaskOnEmptyNamespace(GAETestCase):
+    @mock.patch('migrations.task_enqueuer.enqueue', new_callable=EnqueuerMock)
+    def test_run_only_on_empty_namespace(self, mock_enqueue):
+        namespace_manager.set_namespace("")
+        for i in range(5):
+            mommy.save_one(ModelToMigrate)
+
+        namespace_manager.set_namespace("namespace1")
+        for i in range(5):
+            mommy.save_one(ModelToMigrate)
+
+
+        migration = MigrationsMockEmptyNamespace()
+        migration.start({})
+
+        namespace_manager.set_namespace("")
+        self.assertEqual(5, ModelToMigrate.count_migrated())
+
+        namespace_manager.set_namespace("namespace1")
+        self.assertEqual(0, ModelToMigrate.count_migrated())
