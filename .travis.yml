@@ -10,5 +10,7 @@ before_script:
 - GAE_SDK='readlink -f google_appengine'
 - PATH=$PATH:$GAE_SDK
 - $PATH
+- $GAE_SDK
+- ls
 
 script: tests/testrunner.py
