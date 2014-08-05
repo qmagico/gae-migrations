@@ -9,5 +9,6 @@ before_script:
 - unzip -q google_appengine_1.9.8.zip
 - GAE_SDK='readlink -f google_appengine'
 - PATH=$PATH:$GAE_SDK
+- $PATH
 
 script: tests/testrunner.py
