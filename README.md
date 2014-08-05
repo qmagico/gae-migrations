@@ -1,4 +1,4 @@
-gae-migrations
+gae-migrations [![Build Status](https://travis-ci.org/qmagico/gae-migrations.svg?branch=master)](https://travis-ci.org/qmagico/gae-migrations)
 ==============
 
 This is a "[south like](http://south.readthedocs.org/en/latest)" framemework to do data migrations on Google App Engine platform.
