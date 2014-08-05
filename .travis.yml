@@ -7,6 +7,7 @@ install: pip install -r requirements.txt --use-mirrors
 before_script:
 - wget https://storage.googleapis.com/appengine-sdks/featured/google_appengine_1.9.8.zip -nv
 - unzip -q google_appengine_1.9.8.zip
-- PATH=$PATH:google_appengine
+- GAE_SDK='readlink -f google_appengine'
+- PATH=$PATH:$GAE_SDK
 
 script: tests/testrunner.py
