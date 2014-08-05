@@ -136,7 +136,7 @@ class AbstractMigrationTask():
             'migration_module': self.get_migration_module(),
             'cursor_state': {},
             'task_url': settings.TASKS_RUNNER_URL,
-            'task_queue_name': settings.MIGRATIONS_QUEUE_NAME,
+            'task_queue_name': settings.TASKS_QUEUE,
             'task_retry_options': NO_RETRY
         }
 
