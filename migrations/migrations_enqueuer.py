@@ -1,5 +1,5 @@
 from importlib import import_module
-from migrations.settings import MIGRATIONS_LIST
+from settings import MIGRATIONS_LIST
 from migrations.model import DBMigrationLog
 
 

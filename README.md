@@ -7,24 +7,18 @@ This is a "[south like](http://south.readthedocs.org/en/latest)" framemework to 
 There are few rules you'll need to follow, but is not that hard, I promess.
 
 #### Set a url to run tasks
-You should already know that Google App Engine's task are like web handlers, so you'll need to implement a handler and call our generic enqueuer method [`migrations.task_enqueuer.execute`](https://github.com/qmagico/gae-migrations/blob/master/migrations/task_enqueuer.py#L29), as simple as 1 2 3:
+You should already know that Google App Engine's task are like web handlers, so you'll need to set up your app to add the task runner handler in your app.yaml
 
 ```
-import webapp2
-from migrations import task_enqueuer
-
-class GenericTaskRunner(webapp2.RequestHandler):
-    def get(self, *args, **kwargs):
-      task_enqueuer.execute(*args, **kwargs)
-        
-
-application = webapp2.WSGIApplication([
-    ('/run_generic_task', GenericTaskRunner),
-], debug=True)
+- url: /run_generic_task
+  script: migrations.gae_handler.application
 ```
+
+You can change the `/run_generic_task` to whatever you like
 
 #### Editing settings.py
-gae-migrations need to know some data to work as well, edit the [`migrations.settings.py`](https://github.com/qmagico/gae-migrations/blob/master/migrations/settings.py) to provide this informations
+gae-migrations need need some settings to work, which come from a settings.py file in your root application.
+Make sure this settings provides:
 
 * `TASKS_QUEUE = "DEFAULT`
   This is the task queue you appointed to run the migrations.
@@ -37,4 +31,3 @@ gae-migrations need to know some data to work as well, edit the [`migrations.set
 
 #### Extend the `AbstractMigrationTask` or `AbstractMigrationTaskOnEmptyNamespace` class to migrate the database.
 todo
-
