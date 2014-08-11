@@ -3,7 +3,7 @@ source bin/activate
 pip install coverage
 
 coverage erase
-coverage run tests/testrunner.py
+coverage run '--include=migrations/**' tests/testrunner.py
 coverage xml
 
 deactivate || : # virtualenv
