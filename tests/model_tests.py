@@ -1,5 +1,5 @@
 import mock
-import mommy
+from mommygae import mommy
 
 from google.appengine.api import namespace_manager
 from google.appengine.ext import ndb

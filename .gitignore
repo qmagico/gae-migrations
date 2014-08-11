@@ -5,6 +5,9 @@ __pycache__/
 # C extensions
 *.so
 
+.idea/
+distribute-*.tar.gz
+
 # Distribution / packaging
 .Python
 env/
