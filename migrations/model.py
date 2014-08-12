@@ -197,4 +197,3 @@ class AbstractMigrationTaskOnEmptyNamespace(AbstractMigrationTask):
             return True
         else:
             return False
-
