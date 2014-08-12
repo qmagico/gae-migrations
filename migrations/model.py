@@ -1,6 +1,7 @@
 import time
 import logging
 import sys
+import traceback
 
 from importlib import import_module
 from google.appengine.api import namespace_manager
@@ -172,7 +173,7 @@ class AbstractMigrationTask():
             migrations_enqueuer.enqueue_next_migration()
 
     def stop_with_error(self, error_msg, exception):
-        stacktrace = exception.format_exc()
+        stacktrace = traceback.format_exc()
         self.dbmigration.error(error_msg, stacktrace)
         logging.error(error_msg)
         raise MigrationException(exception)

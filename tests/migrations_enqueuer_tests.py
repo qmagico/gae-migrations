@@ -1,3 +1,4 @@
+from migrations.model import MigrationException
 from migrations import migrations_enqueuer, task_enqueuer
 from migrations.model import DBMigration
 from test_utils import GAETestCase
@@ -134,6 +135,60 @@ class TestRunMigrationsOnEmptyNamespace(GAETestCase):
         self.assertEqual(2, len(dbmigrations))
         self.assertTrue('migration_empty_0001' in dbmigrations)
         self.assertTrue('migration_empty_0002' in dbmigrations)
+
+
+class TestRunMigrationsWithQueryError(GAETestCase):
+    def setUp(self):
+        GAETestCase.setUp(self)
+        self._old_MIGRATIONS_MODULE = settings.MIGRATIONS_MODULE
+        settings.MIGRATIONS_MODULE = 'my.migrations_pau_na_query'
+        self._old_ns = namespace_manager.get_namespace()
+        namespace_manager.set_namespace('ns1')
+        QueDoidura(v1=3).put()
+        QueDoidura(v1=4).put()
+        QueDoidura(v1=5).put()
+        self._old_task_add = taskqueue.add
+        taskqueue.add = sync_task_add
+
+    def tearDown(self):
+        GAETestCase.tearDown(self)
+        settings.MIGRATIONS_MODULE = self._old_MIGRATIONS_MODULE
+        taskqueue.add = self._old_task_add
+        namespace_manager.set_namespace(self._old_ns)
+
+    def test_run_migrations(self):
+        # Roda as migracoes
+        try:
+            migrations_enqueuer.enqueue_next_migration()
+        except MigrationException as e:
+            deupau = True
+            migration_exception = e
+        self.assertTrue(deupau)
+        self.assertEqual('Deu pau na query', migration_exception.cause.message)
+        count = 0
+        v1sum = 0
+        namespace_manager.set_namespace('ns1')
+        for qd in QueDoidura.query():
+            self.assertEqual(qd.v2, 2 * qd.v1)
+            self.assertIsNone(qd.v3)
+            count += 1
+            v1sum += qd.v1
+        self.assertEqual(3, count)
+        self.assertEqual(12, v1sum)
+
+        # E os DBMigrations estao ok
+        namespace_manager.set_namespace('')
+        dbmigrations = {dbm.name: dbm for dbm in DBMigration.query()}
+        self.assertEqual(2, len(dbmigrations))
+        self.assertTrue('DONE', dbmigrations['migration_paunaquery_0001'].status)
+        self.assertTrue('ERROR', dbmigrations['migration_paunaquery_0002'].status)
+
+        # E a migration 1 nao vai rodar de novo
+        dones = DBMigration.last_1000_names_done_or_running()
+        self.assertEqual(1, len(dones))
+        self.assertEqual('migration_paunaquery_0001', dones[0])
+
+
 
 
 
