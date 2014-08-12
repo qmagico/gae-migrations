@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 python bootstrap
 source bin/activate

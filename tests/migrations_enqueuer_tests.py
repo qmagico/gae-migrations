@@ -1,7 +1,6 @@
 from migrations import migrations_enqueuer, task_enqueuer
 from migrations.model import DBMigration
 from test_utils import GAETestCase
-from model_tests import MigrationsMock
 import settings
 from my.migrations import migration_0001_one
 from my.migrations import migration_0002_two
@@ -85,4 +84,54 @@ class TestRunMigrations(GAETestCase):
         self.assertEqual(2, len(dbmigrations))
         self.assertTrue('migration_0001_one' in dbmigrations)
         self.assertTrue('migration_0002_two' in dbmigrations)
+
+
+class TestRunMigrationsOnEmptyNamespace(GAETestCase):
+    def setUp(self):
+        GAETestCase.setUp(self)
+        self._old_MIGRATIONS_MODULE = settings.MIGRATIONS_MODULE
+        settings.MIGRATIONS_MODULE = 'my.migrations_empty_namespace'
+        self._old_ns = namespace_manager.get_namespace()
+        namespace_manager.set_namespace('')
+        QueDoidura(v1=3).put()
+        QueDoidura(v1=4).put()
+        self._old_task_add = taskqueue.add
+        taskqueue.add = sync_task_add
+
+    def tearDown(self):
+        GAETestCase.tearDown(self)
+        settings.MIGRATIONS_MODULE = self._old_MIGRATIONS_MODULE
+        taskqueue.add = self._old_task_add
+        namespace_manager.set_namespace(self._old_ns)
+
+    def test_run_migrations(self):
+        # Roda as migracoes
+        first_migration = migrations_enqueuer.enqueue_next_migration()
+        self.assertEqual('migration_empty_0001', first_migration)
+        count = 0
+        v1sum = 0
+        namespace_manager.set_namespace('')
+        for qd in QueDoidura.query():
+            self.assertEqual(qd.v2, 2 * qd.v1)
+            self.assertEqual(qd.v3, 3 * qd.v1)
+            count += 1
+            v1sum += qd.v1
+        self.assertEqual(2, count)
+        self.assertEqual(7, v1sum)
+
+        # E depois nao roda mais nada
+        first_migration = migrations_enqueuer.enqueue_next_migration()
+        self.assertIsNone(first_migration)
+
+        # E os DBMigrations estao ok
+        namespace_manager.set_namespace('')
+        dbmigrations = []
+        for dbmigration in DBMigration.query():
+            self.assertTrue(dbmigration.status == 'DONE')
+            dbmigrations.append(dbmigration.name)
+        self.assertEqual(2, len(dbmigrations))
+        self.assertTrue('migration_empty_0001' in dbmigrations)
+        self.assertTrue('migration_empty_0002' in dbmigrations)
+
+
 

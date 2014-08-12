@@ -1,54 +1,6 @@
-import mock
-from mommygae import mommy
-
-from google.appengine.api import namespace_manager
-from google.appengine.ext import ndb
-from migrations.model import DBMigration, AbstractMigrationTask, AbstractMigrationTaskOnEmptyNamespace, RUNNING, DONE, ERROR
+from migrations.model import DBMigration, RUNNING, DONE, ERROR
 from test_utils import GAETestCase
 
-
-
-class ModelToMigrate(ndb.Model):
-    migrated = ndb.BooleanProperty(default=False)
-
-    @classmethod
-    def count_migrated(cls):
-        return cls.query(cls.migrated == True).count()
- 
-
-class EnqueuerMock():
-    def __call__(self, method, task_params):
-        method(task_params)
-
-
-class MigrationsMock(AbstractMigrationTask):
-    def __init__(self, name=''):
-        self.name = name
-        self.executed = False
-
-    def start(self, cursor_state={}):
-        self.executed = True
-        AbstractMigrationTask.start(self, cursor_state)
-
-    def get_name(self):
-        return self.name
-
-    def get_description(self):
-        return 'migracao mocada'
-
-    def get_query(self):
-        return ModelToMigrate.query()
-
-    def migrate_one(self, entity):
-        entity.migrated = True
-        entity.put()
-
-class MigrationsMockEmptyNamespace(MigrationsMock):
-    def __init__(self):
-        MigrationsMock.__init__(self)
-
-
-MyTask = MigrationsMock
 
 class TestDBMigrationLog(GAETestCase):
     def test_log_new_migration(self):

@@ -2,7 +2,6 @@ import settings
 import importlib
 import pkgutil
 from migrations.model import DBMigration, enqueue_migration
-from migrations import task_enqueuer
 
 
 def get_all_migrations():
@@ -20,9 +19,3 @@ def enqueue_next_migration():
         if not migration.get_name() in migrated_names:
             enqueue_migration(migration.__module__, None)
             return migration.get_name()
-
-
-def _start_migration(modulename):
-    m = importlib.import_module(modulename)
-    migration = m.MyTask()
-    migration.start(None)
