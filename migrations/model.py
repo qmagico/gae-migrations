@@ -162,7 +162,7 @@ class AbstractMigrationTask():
             try:
                 self.migrate_one(entity)
             except Exception, e:
-                error_msg = 'error migrating on namespace %s: %s' % (self.namespace, entity.key)
+                error_msg = 'error migrating on namespace %s: %s' % (namespace_manager.get_namespace(), entity.key)
                 self.stop_with_error(error_msg, e)
 
         if more:
