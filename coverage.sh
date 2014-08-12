@@ -1,3 +1,5 @@
+#!/bin/sh
+set -e
 python bootstrap
 source bin/activate
 pip install coverage
