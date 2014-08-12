@@ -96,6 +96,7 @@ class TestRunMigrationsOnEmptyNamespace(GAETestCase):
         namespace_manager.set_namespace('')
         QueDoidura(v1=3).put()
         QueDoidura(v1=4).put()
+        QueDoidura(v1=5).put()
         self._old_task_add = taskqueue.add
         taskqueue.add = sync_task_add
 
@@ -117,8 +118,8 @@ class TestRunMigrationsOnEmptyNamespace(GAETestCase):
             self.assertEqual(qd.v3, 3 * qd.v1)
             count += 1
             v1sum += qd.v1
-        self.assertEqual(2, count)
-        self.assertEqual(7, v1sum)
+        self.assertEqual(3, count)
+        self.assertEqual(12, v1sum)
 
         # E depois nao roda mais nada
         first_migration = migrations_enqueuer.enqueue_next_migration()
