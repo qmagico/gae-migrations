@@ -19,3 +19,8 @@ class MyTask(AbstractMigrationTaskOnEmptyNamespace):
     def migrate_one(self, entity):
         entity.v2 = entity.v1 * 2
         entity.put()
+
+    def migrations_per_task(self):
+        """ Opcional. Retorna quantas migracoes devem ser rodadas por task (default = 1000) """
+        return 2
+
