@@ -38,6 +38,7 @@ class TestRunMigrations(GAETestCase):
         namespace_manager.set_namespace('ns1')
         QueDoidura(v1=3).put()
         QueDoidura(v1=4).put()
+        QueDoidura(v1=5).put()
         namespace_manager.set_namespace('ns2')
         QueDoidura(v1=30).put()
         QueDoidura(v1=40).put()
@@ -68,8 +69,8 @@ class TestRunMigrations(GAETestCase):
             self.assertEqual(qd.v3, 3 * qd.v1)
             count += 1
             v1sum += qd.v1
-        self.assertEqual(4, count)
-        self.assertEqual(77, v1sum)
+        self.assertEqual(5, count)
+        self.assertEqual(82, v1sum)
 
         # E depois nao roda mais nada
         first_migration = migrations_enqueuer.enqueue_next_migration()

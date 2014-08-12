@@ -108,6 +108,9 @@ class AbstractMigrationTask():
         }
         return cursor_state
 
+    def migrations_per_task(self):
+        return 1000
+
     def get_namespace(self, cursor_state):
         return cursor_state['namespaces'][cursor_state['namespace_index']]
 
@@ -143,7 +146,9 @@ class AbstractMigrationTask():
             error_msg = 'error getting query'
             self.stop_with_error(error_msg, e)
 
-        result, cursor, more = query.fetch_page(1000, start_cursor=cursor)
+        size = self.migrations_per_task()
+
+        result, cursor, more = query.fetch_page(size, start_cursor=cursor)
         more = self.update_cursor_state(cursor_state, cursor, more)
         return result, cursor_state, more
 
