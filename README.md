@@ -1,33 +1,36 @@
-gae-migrations [![Build Status](https://travis-ci.org/qmagico/gae-migrations.svg?branch=master)](https://travis-ci.org/qmagico/gae-migrations)
+gae-migrations
 ==============
 
-This is a "[south like](http://south.readthedocs.org/en/latest)" framemework to do data migrations on Google App Engine platform.
+This is a "[south like](http://south.readthedocs.org/en/latest)" framemework to run data migrations on Google App Engine platform.
 
 ## How to use
-There are few rules you'll need to follow, but is not that hard, I promess.
 
-#### Set a url to run tasks
-You should already know that Google App Engine's task are like web handlers, so you'll need to set up your app to add the task runner handler in your app.yaml
+### 1. Copy the migrations folder into your app
+
+### 2. Create a settings.py file in your app root with:
 
 ```
-- url: /run_generic_task
-  script: migrations.gae_handler.application
+TASKS_QUEUE = 'DEFAULT'  # Some queue name to run tasks, if you want to use task_enqueuer in your app
+MIGRATIONS_QUEUE = 'migrations'  # Queue name to run migrations
+TASKS_RUNNER_URL = '/run_generic_task'  # A URL for task_enqueuer
+MIGRATIONS_MODULE = 'module.where.you.keep.your.migrations'  # A python module where you'll keep your migrations
 ```
 
-You can change the `/run_generic_task` to whatever you like
+### 3. Create migrations
 
-#### Editing settings.py
-gae-migrations need need some settings to work, which come from a settings.py file in your root application.
-Make sure this settings provides:
+Basically you need to:
 
-* `TASKS_QUEUE = "DEFAULT`
-  This is the task queue you appointed to run the migrations.
+* Create one migration per file, [see examples here](https://github.com/qmagico/gae-migrations/tree/master/tests/my/migrations)
+* The migration class must be named "MyTask" and extend `AbstractMigrationTask` or `AbstractMigrationTaskOnEmptyNamespace`
+* You must implement `get_name`, `get_description`, `get_query`, and `migrate_one`
+* Optionally you can implement `migrations_per_task`, otherwise, gae-migrations will try to migrate 1000 entities per task run.
 
-* `TASKS_RUNNER_URL = '/run_generic_task'`
-  Put where the URL from step 1.
+### 4. Start migrations
 
-* `MIGRATIONS_LIST = []`
-  This is a list of all files containing migration, this [code snipet]() may help you.
+On your app, you trigger migrations by doing:
 
-#### Extend the `AbstractMigrationTask` or `AbstractMigrationTaskOnEmptyNamespace` class to migrate the database.
-todo
+```python
+from migrations import migrations_enqueuer
+
+migrations_enqueuer.enqueue_next_migration()
+```
