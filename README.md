@@ -5,7 +5,7 @@ This is a "[south like](http://south.readthedocs.org/en/latest)" framemework to 
 
 ## How to use
 
-### 1. Copy the migrations folder into your app
+#### 1. Copy the migrations folder into your app
 
 ### 2. Create a settings.py file in your app root with:
 
