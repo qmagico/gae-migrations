@@ -19,8 +19,9 @@ NO_RETRY = TaskRetryOptions(task_retry_limit=0)
 
 
 class MigrationException(BaseException):
-    def __init__(self, cause):
+    def __init__(self, cause, dbmigration):
         BaseException.__init__(self, cause.message)
+        self.dbmigration = dbmigration
         self.cause = cause
 
 
@@ -160,10 +161,12 @@ class AbstractMigrationTask():
 
         for entity in entities:
             try:
+                logging.info('migrating %s...' % entity.key)
                 self.migrate_one(entity)
             except Exception, e:
                 error_msg = 'error migrating on namespace %s: %s' % (namespace_manager.get_namespace(), entity.key)
                 self.stop_with_error(error_msg, e)
+        logging.info('Total entities migrated: %s' % len(entities))
 
         if more:
             enqueue_migration(self.get_migration_module(), cursor_state=cursor_state)
@@ -176,7 +179,7 @@ class AbstractMigrationTask():
         stacktrace = traceback.format_exc()
         self.dbmigration.error(error_msg, stacktrace)
         logging.error(error_msg)
-        raise MigrationException(exception)
+        raise MigrationException(exception, self.dbmigration)
 
     def finish_migration(self):
         self.dbmigration.finish()
