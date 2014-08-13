@@ -1,7 +1,7 @@
 gae-migrations
 ==============
 
-This is a "[south like](http://south.readthedocs.org/en/latest)" framemework to run data migrations on Google App Engine platform.
+This is a "[south like](http://south.readthedocs.org/en/latest)" framework to run data migrations on Google App Engine platform.
 
 ## How to use
 
