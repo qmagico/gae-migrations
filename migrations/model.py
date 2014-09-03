@@ -25,7 +25,7 @@ class MigrationException(BaseException):
         self.cause = cause
 
 
-class DBMigration(ndb.Model):
+class AbstractDBTask(ndb.Model):
     name = ndb.StringProperty(required=True)
     description = ndb.StringProperty(required=True)
     status = ndb.StringProperty(required=True, choices=[RUNNING, DONE, ERROR])
@@ -82,6 +82,29 @@ class DBMigration(ndb.Model):
     def _wait_for_update_after(self, d):
         while not self.key.get().last_update > d:
             time.sleep(0.1)
+
+
+class DBSingleMigration(AbstractDBTask):
+
+    @classmethod
+    def get_module(cls):
+        return settings.MIGRATIONS_MODULE
+
+
+class DBDataChecker(AbstractDBTask):
+
+    @classmethod
+    def get_module(cls):
+        return settings.DATA_CHECKER_MODULE
+
+    @classmethod
+    def delete_all(cls):
+        original_ns = namespace_manager.get_namespace()
+        namespace_manager.set_namespace('')
+        for db_data_checker in cls.query():
+            db_data_checker.key.delete()
+
+        namespace_manager.set_namespace(original_ns)
 
 
 def enqueue_migration(module_name, cursor_state=None):
@@ -155,7 +178,8 @@ class AbstractMigrationTask():
         return result, cursor_state, more
 
     def start(self, cursor_state):
-        self.dbmigration = DBMigration.find_or_create(self.get_name(), self.get_description())
+        db_class = self.get_db_class()
+        self.dbmigration = db_class.find_or_create(self.get_name(), self.get_description())
 
         entities, cursor_state, more = self.fetch(cursor_state)
 
@@ -173,7 +197,7 @@ class AbstractMigrationTask():
         else:
             self.finish_migration()
             from migrations import migrations_enqueuer
-            migrations_enqueuer.enqueue_next_migration()
+            migrations_enqueuer.enqueue_next_task(db_class)
 
     def stop_with_error(self, error_msg, exception):
         stacktrace = traceback.format_exc()
@@ -184,6 +208,17 @@ class AbstractMigrationTask():
     def finish_migration(self):
         self.dbmigration.finish()
         logging.info('end of migration %s on empty namespace' % self.get_name())
+
+    @classmethod
+    def get_db_class(cls):
+        return DBSingleMigration
+
+
+class DataCheckerMigration(AbstractMigrationTask):
+
+    @classmethod
+    def get_db_class(cls):
+        return DBDataChecker
 
 
 class AbstractMigrationTaskOnEmptyNamespace(AbstractMigrationTask):
