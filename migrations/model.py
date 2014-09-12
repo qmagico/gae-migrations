@@ -93,6 +93,8 @@ class DBSingleMigration(AbstractDBTask):
 
 class DBDataChecker(AbstractDBTask):
 
+    number_of_inconsistencies = ndb.IntegerProperty()
+
     @classmethod
     def get_module(cls):
         return settings.DATA_CHECKER_MODULE
@@ -105,6 +107,17 @@ class DBDataChecker(AbstractDBTask):
             db_data_checker.key.delete()
 
         namespace_manager.set_namespace(original_ns)
+
+
+class DBInconsistency(ndb.Model):
+
+    task_key = ndb.KeyProperty()
+    entities = ndb.KeyProperty(repeated=True)
+
+    def __init__(self, task_key, entities):
+        super(DBInconsistency, self).__init__(namespace='')
+        self.task_key = task_key
+        self.entities = entities
 
 
 def enqueue_migration(module_name, cursor_state=None):
@@ -219,6 +232,14 @@ class DataCheckerMigration(AbstractMigrationTask):
     @classmethod
     def get_db_class(cls):
         return DBDataChecker
+
+    def inconsistency_found(self, entities):
+        dbmigration = DBDataChecker.find_or_create(self.get_name(), self.get_description())
+        dbmigration.number_of_inconsistencies += 1
+        dbmigration.put()
+
+        inconsistency = DBInconsistency(dbmigration.key, entities)
+        inconsistency.put()
 
 
 class AbstractMigrationTaskOnEmptyNamespace(AbstractMigrationTask):
