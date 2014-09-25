@@ -16,7 +16,7 @@ import traceback
 NO_RETRY = TaskRetryOptions(task_retry_limit=0)
 
 
-def run_pending(module):
+def _module_and_name(module):
     if isinstance(module, ModuleType):
         module_name = module.__name__
     elif isinstance(module, basestring):
@@ -24,6 +24,11 @@ def run_pending(module):
         module = importlib.import_module(module_name)
     else:
         raise BaseException('Tah de brincation with me, cara?')
+    return module, module_name
+
+
+def run_pending(module):
+    module, module_name = _module_and_name(module)
     migrated_names = DBMigration.last_1000_names_done_or_running(module=module_name)
     for candidate_migration_name in get_all_migration_names(module):
         if not candidate_migration_name in migrated_names:
@@ -34,6 +39,12 @@ def run_pending(module):
                                   cursor_state=None,
                                   task_retry_options=NO_RETRY)
             return candidate_migration_name
+
+
+def run_all(module):
+    module, module_name = _module_and_name(module)
+    DBMigration.delete_all(module_name)
+    run_pending(module)
 
 
 def get_all_migration_names(module):
@@ -47,11 +58,22 @@ def get_all_migration_names(module):
 def task_start_migration(module_name, migration_name, cursor_state=None):
     module = importlib.import_module(module_name)
     migration_module = importlib.import_module(module_name + '.' + migration_name)
-    migrator = Migrator(module, migration_module)
+    restrict_ns = getattr(migration_module, 'RESTRICT_NAMESPACE', None)
+    if restrict_ns is None:
+        migrator = Migrator(module, migration_module)
+    else:
+        migrator = MigratorOnEmptyNamespace(module, migration_module)
     migrator.start(cursor_state)
 
 
-class Migrator():
+class MigrationException(BaseException):
+    def __init__(self, cause, dbmigration):
+        BaseException.__init__(self, cause.message)
+        self.dbmigration = dbmigration
+        self.cause = cause
+
+
+class Migrator(object):
     def __init__(self, module, migration_module):
         self.module = module
         self.migration_module = migration_module
@@ -145,11 +167,23 @@ class Migrator():
         logging.info('end of migration %s on namespace %s' % (self.migration_name, namespace_manager.get_namespace()))
 
 
-class MigrationException(BaseException):
-    def __init__(self, cause, dbmigration):
-        BaseException.__init__(self, cause.message)
-        self.dbmigration = dbmigration
-        self.cause = cause
+class MigratorOnEmptyNamespace(Migrator):
+    def __init__(self, module, migration_module):
+        super(MigratorOnEmptyNamespace, self).__init__(module, migration_module)
+
+    def init_cursor(self):
+        cursor_state = {'cursor_urlsafe': None}
+        return cursor_state
+
+    def get_namespace(self, cursor_state):
+        return ''
+
+    def update_cursor_state(self, cursor_state, querycursor, more):
+        if more:
+            cursor_state['cursor_urlsafe'] = querycursor.urlsafe()
+            return True
+        else:
+            return False
 
 
 

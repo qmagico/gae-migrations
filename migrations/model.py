@@ -37,12 +37,20 @@ class DBMigration(ndb.Model):
     def last_1000_names_done_or_running(cls, module):
         original_ns = namespace_manager.get_namespace()
         namespace_manager.set_namespace('')
-        migrations = cls.query(cls.module==module, cls.status.IN([DONE, RUNNING])).order(-cls.name).fetch(1000)
+        migrations = cls.query(cls.module == module, cls.status.IN([DONE, RUNNING])).order(-cls.name).fetch(1000)
         names = []
         for migration in migrations:
             names.append(migration.name)
         namespace_manager.set_namespace(original_ns)
         return names
+
+    @classmethod
+    def delete_all(cls, module):
+        original_ns = namespace_manager.get_namespace()
+        namespace_manager.set_namespace('')
+        for db_data_checker in cls.query(DBMigration.module == module):
+            db_data_checker.key.delete()
+        namespace_manager.set_namespace(original_ns)
 
     def finish(self):
         original_ns = namespace_manager.get_namespace()
@@ -118,17 +126,3 @@ class DBInconsistency(ndb.Model):
 #         inconsistency.put()
 #
 #
-# class AbstractMigrationTaskOnEmptyNamespace(AbstractMigrationTask):
-#     def init_cursor(self):
-#         cursor_state = {'cursor_urlsafe': None}
-#         return cursor_state
-#
-#     def get_namespace(self, cursor_state):
-#         return ''
-#
-#     def update_cursor_state(self, cursor_state, querycursor, more):
-#         if more:
-#             cursor_state['cursor_urlsafe'] = querycursor.urlsafe()
-#             return True
-#         else:
-#             return False
