@@ -7,13 +7,22 @@ from google.appengine.api import namespace_manager
 from google.appengine.api.taskqueue.taskqueue import TaskRetryOptions
 from google.appengine.ext.ndb import Cursor
 from google.appengine.ext.db.metadata import get_namespaces
-from migrations import task_enqueuer
 import settings
 import logging
 import traceback
 
 
 NO_RETRY = TaskRetryOptions(task_retry_limit=0)
+
+
+def run_pending(module):
+    return _run_pending(module)
+
+
+def run_all(module, ns=None):
+    module, module_name = _module_and_name(module)
+    DBMigration.delete_all(module_name)
+    return _run_pending(module, ns)
 
 
 def _module_and_name(module):
@@ -27,7 +36,7 @@ def _module_and_name(module):
     return module, module_name
 
 
-def run_pending(module):
+def _run_pending(module, ns=None):
     module, module_name = _module_and_name(module)
     migrated_names = DBMigration.last_1000_names_done_or_running(module=module_name)
     for candidate_migration_name in get_all_migration_names(module):
@@ -37,14 +46,9 @@ def run_pending(module):
                                   module_name=module_name,
                                   migration_name=candidate_migration_name,
                                   cursor_state=None,
+                                  ns=ns,
                                   task_retry_options=NO_RETRY)
             return candidate_migration_name
-
-
-def run_all(module):
-    module, module_name = _module_and_name(module)
-    DBMigration.delete_all(module_name)
-    run_pending(module)
 
 
 def get_all_migration_names(module):
@@ -55,14 +59,18 @@ def get_all_migration_names(module):
     return all_migration_names
 
 
-def task_start_migration(module_name, migration_name, cursor_state=None):
+def task_start_migration(module_name, migration_name, cursor_state=None, ns=None):
     module = importlib.import_module(module_name)
     migration_module = importlib.import_module(module_name + '.' + migration_name)
     restrict_ns = getattr(migration_module, 'RESTRICT_NAMESPACE', None)
+    if ns is not None and restrict_ns is not None and ns != restrict_ns:
+        raise Exception('Impossivel executar migracao %s. ns=%s / restrict_ns=%s' % (migration_name, ns, restrict_ns))
+    if restrict_ns is None:
+        restrict_ns = ns
     if restrict_ns is None:
         migrator = Migrator(module, migration_module)
     else:
-        migrator = MigratorOnEmptyNamespace(module, migration_module)
+        migrator = MigratorOnOneNamespace(module, migration_module, restrict_ns)
     migrator.start(cursor_state)
 
 
@@ -81,6 +89,7 @@ class Migrator(object):
         self.migration_name = migration_module.__name__.split('.')[-1]
         self.migration_description = getattr(migration_module, 'DESCRIPTION', '')
         self.migrations_per_task = getattr(migration_module, 'MIGRATIONS_PER_TASK', 1000)
+        self.restrict_ns = None
 
     def init_cursor(self):
         cursor_state = {
@@ -151,10 +160,11 @@ class Migrator(object):
                                   module_name=self.module_name,
                                   migration_name=self.migration_name,
                                   cursor_state=cursor_state,
+                                  ns=self.restrict_ns,
                                   task_retry_options=NO_RETRY)
         else:
             self.finish_migration()
-            run_pending(self.module)
+            _run_pending(self.module, self.restrict_ns)
 
     def stop_with_error(self, error_msg, exception):
         stacktrace = traceback.format_exc()
@@ -167,16 +177,17 @@ class Migrator(object):
         logging.info('end of migration %s on namespace %s' % (self.migration_name, namespace_manager.get_namespace()))
 
 
-class MigratorOnEmptyNamespace(Migrator):
-    def __init__(self, module, migration_module):
-        super(MigratorOnEmptyNamespace, self).__init__(module, migration_module)
+class MigratorOnOneNamespace(Migrator):
+    def __init__(self, module, migration_module, restrict_ns):
+        super(MigratorOnOneNamespace, self).__init__(module, migration_module)
+        self.restrict_ns = restrict_ns
 
     def init_cursor(self):
         cursor_state = {'cursor_urlsafe': None}
         return cursor_state
 
     def get_namespace(self, cursor_state):
-        return ''
+        return self.restrict_ns
 
     def update_cursor_state(self, cursor_state, querycursor, more):
         if more:
@@ -184,16 +195,3 @@ class MigratorOnEmptyNamespace(Migrator):
             return True
         else:
             return False
-
-
-
-
-#
-#
-# def start_db_checker():
-#     DBDataChecker.delete_all()
-#     enqueue_next_task(DBDataChecker)
-#
-#
-# def enqueue_next_single_migration():
-#     return enqueue_next_task(DBSingleMigration)

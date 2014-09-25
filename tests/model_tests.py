@@ -1,8 +1,18 @@
+from google.appengine.api import namespace_manager
 from migrations.model import RUNNING, DONE, ERROR, DBMigration
 from test_utils import GAETestCase
 
 
 class TestDBMigrationLog(GAETestCase):
+    def setUp(self):
+        GAETestCase.setUp(self)
+        self._old_ns = namespace_manager.get_namespace()
+        namespace_manager.set_namespace('')
+
+    def tearDown(self):
+        GAETestCase.tearDown(self)
+        namespace_manager.set_namespace(self._old_ns)
+
     def test_log_new_migration(self):
         name = 'migration_0000_test'
         description = 'just a test'
