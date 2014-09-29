@@ -10,7 +10,7 @@ class TestListMigrations(GAETestCase):
         self.assertEqual(3, len(allmigration_names))
         self.assertEqual('migration_0001_one', allmigration_names[0])
         self.assertEqual('migration_0002_two', allmigration_names[1])
-        self.assertEqual('migration_0003_three', allmigration_names[1])
+        self.assertEqual('migration_0003_three', allmigration_names[2])
 
 
 
