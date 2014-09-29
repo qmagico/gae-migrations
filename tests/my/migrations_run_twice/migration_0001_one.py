@@ -16,5 +16,3 @@ def get_query():
 def migrate_one(entity):
     entity.v1 *= 2
     entity.put()
-
-

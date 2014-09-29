@@ -2,7 +2,7 @@ import migrations
 from migrations import task_enqueuer, MigrationException
 from migrations.model import DBMigration
 from test_utils import GAETestCase
-from my.models import QueDoidura
+from my.models import QueDoidura, QuantaLoucura
 from google.appengine.api import taskqueue, namespace_manager
 import my.migrations
 import my.migrations_empty_namespace
@@ -45,12 +45,14 @@ class TestRunMigrations(GAETestCase):
             self.assertEqual(qd.v3, 3 * qd.v1)
             count += 1
             v1sum += qd.v1
+        self.assertEqual(3, QuantaLoucura.query().get().quanto)
         namespace_manager.set_namespace('ns2')
         for qd in QueDoidura.query():
             self.assertEqual(qd.v2, 2 * qd.v1)
             self.assertEqual(qd.v3, 3 * qd.v1)
             count += 1
             v1sum += qd.v1
+        self.assertEqual(2, QuantaLoucura.query().get().quanto)
         self.assertEqual(5, count)
         self.assertEqual(82, v1sum)
 
@@ -64,9 +66,10 @@ class TestRunMigrations(GAETestCase):
         for dbmigration in DBMigration.query(DBMigration.module == 'my.migrations'):
             self.assertTrue(dbmigration.status == 'DONE')
             dbmigrations.append(dbmigration.name)
-        self.assertEqual(2, len(dbmigrations))
+        self.assertEqual(3, len(dbmigrations))
         self.assertTrue('migration_0001_one' in dbmigrations)
         self.assertTrue('migration_0002_two' in dbmigrations)
+        self.assertTrue('migration_0003_three' in dbmigrations)
 
 
 class TestRunMigrationsOnEmptyNamespace(GAETestCase):

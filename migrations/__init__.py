@@ -99,6 +99,7 @@ class Migrator(object):
         self.migration_description = getattr(migration_module, 'DESCRIPTION', '')
         self.migrations_per_task = getattr(migration_module, 'MIGRATIONS_PER_TASK', 1000)
         self.restrict_ns = None
+        self.has_query = hasattr(self.migration_module, 'get_query')
 
     def init_cursor(self):
         cursor_state = {
@@ -133,21 +134,25 @@ class Migrator(object):
         if namespace != namespace_manager.get_namespace():
             namespace_manager.set_namespace(namespace)
 
-        cursor_urlsafe = cursor_state.get('cursor_urlsafe', None)
-        cursor = cursor_urlsafe and Cursor(urlsafe=cursor_urlsafe)
+        if self.has_query:
+            cursor_urlsafe = cursor_state.get('cursor_urlsafe', None)
+            cursor = cursor_urlsafe and Cursor(urlsafe=cursor_urlsafe)
 
-        query = None
-        try:
-            query = self.migration_module.get_query()
-        except Exception, e:
-            error_msg = 'error getting query'
-            self.stop_with_error(error_msg, e)
+            query = None
+            try:
+                query = self.migration_module.get_query()
+            except Exception, e:
+                error_msg = 'error getting query'
+                self.stop_with_error(error_msg, e)
 
-        size = self.migrations_per_task
+            size = self.migrations_per_task
 
-        result, cursor, more = query.fetch_page(size, start_cursor=cursor)
-        more = self.update_cursor_state(cursor_state, cursor, more)
-        return result, cursor_state, more
+            result, cursor, more = query.fetch_page(size, start_cursor=cursor)
+            more = self.update_cursor_state(cursor_state, cursor, more)
+            return result, cursor_state, more
+        else:
+            more = self.update_cursor_state(cursor_state, None, False)
+            return [None], cursor_state, more
 
     def start(self, cursor_state):
         self.dbmigration = DBMigration.find_or_create(self.module_name, self.migration_name, self.migration_description)
@@ -155,11 +160,15 @@ class Migrator(object):
         entities, cursor_state, more = self.fetch(cursor_state)
 
         for entity in entities:
+            ekey = entity.key if entity else None
             try:
-                logging.info('migrating %s...' % entity.key)
-                self.migration_module.migrate_one(entity)
+                logging.info('migrating %s...' % ekey)
+                if self.has_query:
+                    self.migration_module.migrate_one(entity)
+                else:
+                    self.migration_module.migrate()
             except Exception, e:
-                error_msg = 'error migrating on namespace %s: %s' % (namespace_manager.get_namespace(), entity.key)
+                error_msg = 'error migrating on namespace %s: %s' % (namespace_manager.get_namespace(), ekey)
                 self.stop_with_error(error_msg, e)
         logging.info('Total entities migrated: %s' % len(entities))
 

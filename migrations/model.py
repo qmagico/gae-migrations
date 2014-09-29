@@ -1,7 +1,6 @@
 import time
 from google.appengine.api import namespace_manager
 from google.appengine.ext import ndb
-import settings
 
 RUNNING = 'RUNNING'
 DONE = 'DONE'
