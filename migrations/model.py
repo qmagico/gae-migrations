@@ -34,6 +34,14 @@ class DBMigration(ndb.Model):
         return migration
 
     @classmethod
+    def find_by_status(cls, module, status):
+        original_ns = namespace_manager.get_namespace()
+        namespace_manager.set_namespace('')
+        migrations = cls.query(cls.module == module, cls.status == status).fetch()
+        namespace_manager.set_namespace(original_ns)
+        return migrations
+
+    @classmethod
     def last_1000_names_done_or_running(cls, module):
         original_ns = namespace_manager.get_namespace()
         namespace_manager.set_namespace('')

@@ -1,7 +1,7 @@
 import importlib
 import pkgutil
 from migrations import task_enqueuer
-from migrations.model import DBMigration
+from migrations.model import DBMigration, RUNNING
 from types import ModuleType
 from google.appengine.api import namespace_manager
 from google.appengine.api.taskqueue.taskqueue import TaskRetryOptions
@@ -21,6 +21,7 @@ def run_pending(module):
 
 def run_all(module, ns=None):
     module, module_name = _module_and_name(module)
+    _throw_if_already_running(module_name)
     DBMigration.delete_all(module_name)
     return _run_pending(module, ns)
 
@@ -38,6 +39,7 @@ def _module_and_name(module):
 
 def _run_pending(module, ns=None):
     module, module_name = _module_and_name(module)
+    _throw_if_already_running(module_name)
     migrated_names = DBMigration.last_1000_names_done_or_running(module=module_name)
     for candidate_migration_name in get_all_migration_names(module):
         if not candidate_migration_name in migrated_names:
@@ -49,6 +51,13 @@ def _run_pending(module, ns=None):
                                   ns=ns,
                                   task_retry_options=NO_RETRY)
             return candidate_migration_name
+
+
+def _throw_if_already_running(module_name):
+    migrations = DBMigration.find_by_status(module_name, RUNNING)
+    if migrations:
+        raise BaseException('Cannot start migrations on module %s because [%s] is RUNNING' % (
+            module_name, migrations[0].name))
 
 
 def get_all_migration_names(module):

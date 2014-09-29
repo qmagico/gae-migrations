@@ -1,4 +1,5 @@
 import migrations
+from migrations.model import DBMigration
 import run_pending_tests
 from test_utils import GAETestCase
 from my.models import QueDoidura
@@ -89,3 +90,12 @@ class TestRunAllMigrations(GAETestCase):
         qds = QueDoidura.query().order(QueDoidura.v1).fetch()
         self.assertEqual(60, qds[0].v1)
         self.assertEqual(66, qds[1].v1)
+
+    def test_cannot_start_if_something_is_running(self):
+        namespace_manager.set_namespace('')
+        runningmigration = DBMigration(name='bla', description='x', module='my.migrations_run_twice', status='RUNNING')
+        runningmigration.put()
+        with self.assertRaises(BaseException) as ex:
+            migrations.run_all(my.migrations_run_twice, ns='ns1')
+        self.assertEqual('Cannot start migrations on module my.migrations_run_twice because [bla] is RUNNING', ex.exception.message)
+
