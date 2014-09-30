@@ -61,6 +61,8 @@ def _throw_if_already_running(module_name):
 
 
 def get_all_migration_names(module):
+    if isinstance(module, basestring):
+        module = importlib.import_module(module)
     all_migration_names = []
     for subm, subn, is_module in pkgutil.iter_modules(module.__path__):
         all_migration_names.append(subn)

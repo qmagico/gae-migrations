@@ -41,6 +41,14 @@ class DBMigration(ndb.Model):
         return migrations
 
     @classmethod
+    def find_all_by_module(cls, module):
+        original_ns = namespace_manager.get_namespace()
+        namespace_manager.set_namespace('')
+        migrations = cls.query(cls.module == module).fetch()
+        namespace_manager.set_namespace(original_ns)
+        return migrations
+
+    @classmethod
     def last_1000_names_done_or_running(cls, module):
         original_ns = namespace_manager.get_namespace()
         namespace_manager.set_namespace('')
@@ -92,8 +100,11 @@ class DBMigration(ndb.Model):
         }
 
     def _wait_for_update_after(self, d):
-        while not self.key.get().last_update > d:
+        ok = False
+        while not ok:
             time.sleep(0.1)
+            dbm = self.key.get()
+            ok = dbm.last_update > d
 
 
 # class DBDataChecker(BDMigration):

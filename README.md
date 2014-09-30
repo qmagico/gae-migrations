@@ -1,22 +1,24 @@
 gae-migrations
 ==============
 
-This is a "[south like](http://south.readthedocs.org/en/latest)" framework to run data migrations on Google App Engine platform.
+This is a framework for long-running tasks on Google Appengine.
+It can be used to run "[south like](http://south.readthedocs.org/en/latest)" migrations, which run once on a lifetime, but one can also use it to run periodic jobs.
+
+Migrations can be ran on all namespaces or on a single namespace.
 
 ## How to use
 
-##### 1. Copy the migrations folder into your app
+#### 1. Copy the migrations folder into your app
 
-##### 2. Create a settings.py file in your app root with:
+#### 2. Create a settings.py file in your app root with:
 
 ```
 TASKS_QUEUE = 'DEFAULT'  # Some queue name to run tasks, if you want to use task_enqueuer in your app
 MIGRATIONS_QUEUE = 'migrations'  # Queue name to run migrations
 TASKS_RUNNER_URL = '/run_generic_task'  # A URL for task_enqueuer
-MIGRATIONS_MODULE = 'module.where.you.keep.your.migrations'  # A python module where you'll keep your migrations
 ```
 
-##### 3. Register the task handler on your `app.yaml`:
+#### 3. Register the task handler on your `app.yaml`:
 
 ```
 - url: /run_generic_task
@@ -24,21 +26,41 @@ MIGRATIONS_MODULE = 'module.where.you.keep.your.migrations'  # A python module w
   login: admin
 ```
 
-##### 4. Create migrations
+#### 4. Create migrations modules
 
-Basically you need to:
+A migrations module is a python module (folder) which has one or more migrations inside.
+A migration is a python module (.py file) that defines functions and properties about the migration.
+There are different functions and attributes that a migration can have. Read on
 
-* Create one migration per file, [see examples here](https://github.com/qmagico/gae-migrations/tree/master/tests/my/migrations)
-* The migration class must be named "MyTask" and extend `AbstractMigrationTask` or `AbstractMigrationTaskOnEmptyNamespace`
-* You must implement `get_name`, `get_description`, `get_query`, and `migrate_one`
-* Optionally you can implement `migrations_per_task`, otherwise, gae-migrations will try to migrate 1000 entities per task run.
+##### 4.1 Migration Attributes
 
-##### 5. Start migrations
+* DESCRIPTION - A description for the migration
+* MIGRATIONS_PER_TASK - How many entities should be migrated per single task run (only use this if you define `get_query()`)
+* RESTRICT_NAMESPACE - Only run this task on the specified namespace
+
+##### 4.2 Migration functions
+
+* get_query() - This is optional. This is supposed to return a ndb query object which will loop through all the objects you want to migrate.
+* migrate_one(entity) - Perform migration on a single entity
+* migrate_many(entities) - Perform migration on an array of entities
+* migrate() - Just run the migration
+
+If you implement `get_query`, you should also implement `migrate_one` or `migrate_many`. Otherwise, you must implement `migrate`.
+
+
+#### 5. Start migrations
 
 On your app, you trigger migrations by doing:
 
 ```python
-from migrations import migrations_enqueuer
+import migrations
+import my.south_like.migrations.module
+import my.periodic_tasks.module
+import my.tasks.that.only.run.on.red.namespace.module
 
-migrations_enqueuer.enqueue_next_migration()
+migrations.run_pending(my.south_like.migrations.module)
+migrations.run_all(my.periodic_tasks.module)
+migrations.run_all(my.tasks.that.only.run.on.red.namespace.module, ns='red')
 ```
+
+Take a look at the the test-cases, they should give you a good idea of how all works :-)

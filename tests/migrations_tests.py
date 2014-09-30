@@ -7,7 +7,9 @@ from my.migrations import migration_0002_two
 class TestListMigrations(GAETestCase):
     def test_list_migrations(self):
         allmigration_names = migrations.get_all_migration_names(my.migrations)
+        allmigration_names2 = migrations.get_all_migration_names('my.migrations')
         self.assertEqual(3, len(allmigration_names))
         self.assertEqual('migration_0001_one', allmigration_names[0])
         self.assertEqual('migration_0002_two', allmigration_names[1])
         self.assertEqual('migration_0003_three', allmigration_names[2])
+        self.assertEqual(allmigration_names, allmigration_names2)
