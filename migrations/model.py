@@ -79,6 +79,18 @@ class DBMigration(ndb.Model):
         self._wait_for_update_after(last_update)
         namespace_manager.set_namespace(original_ns)
 
+    def to_dict_json(self):
+        return {
+            'name': self.name,
+            'description': self.description,
+            'module': self.module,
+            'status': self.status,
+            'creation': self.creation.strftime('%Y/%m/%d %H:%M') if self.creation else None,
+            'last_update': self.last_update.strftime('%Y/%m/%d %H:%M') if self.last_update else None,
+            'error_msg': self.error_msg,
+            'stacktrace': self.stacktrace,
+        }
+
     def _wait_for_update_after(self, d):
         while not self.key.get().last_update > d:
             time.sleep(0.1)
@@ -102,20 +114,15 @@ class DBMigration(ndb.Model):
 #         namespace_manager.set_namespace(original_ns)
 
 
-class DBInconsistency(ndb.Model):
-
-    task_key = ndb.KeyProperty()
-    entities = ndb.KeyProperty(repeated=True)
-
-    def __init__(self, task_key, entities):
-        super(DBInconsistency, self).__init__(namespace='')
-        self.task_key = task_key
-        self.entities = entities
-
-
-
-
-
+# class DBInconsistency(ndb.Model):
+#
+#     task_key = ndb.KeyProperty()
+#     entities = ndb.KeyProperty(repeated=True)
+#
+#     def __init__(self, task_key, entities):
+#         super(DBInconsistency, self).__init__(namespace='')
+#         self.task_key = task_key
+#         self.entities = entities
 
 
 # class DataCheckerMigration(AbstractMigrationTask):
