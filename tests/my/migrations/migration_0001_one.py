@@ -1,3 +1,4 @@
+from google.appengine.ext import ndb
 from my.models import QueDoidura
 
 
@@ -13,8 +14,7 @@ def get_query():
     return QueDoidura.query()
 
 
-def migrate_one(entity):
-    entity.v2 = entity.v1 * 2
-    entity.put()
-
-
+def migrate_many(entities):
+    for entity in entities:
+        entity.v2 = entity.v1 * 2
+    ndb.put_multi(entities)

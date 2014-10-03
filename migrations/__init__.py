@@ -102,6 +102,9 @@ class Migrator(object):
         self.migrations_per_task = getattr(migration_module, 'MIGRATIONS_PER_TASK', 1000)
         self.restrict_ns = None
         self.has_query = hasattr(self.migration_module, 'get_query')
+        self.has_migrate = hasattr(self.migration_module, 'migrate')
+        self.has_migrate_one = hasattr(self.migration_module, 'migrate_one')
+        self.has_migrate_many = hasattr(self.migration_module, 'migrate_many')
 
     def init_cursor(self):
         cursor_state = {
@@ -129,62 +132,66 @@ class Migrator(object):
                 return False
 
     def fetch(self, cursor_state):
+        cursor_urlsafe = cursor_state.get('cursor_urlsafe', None)
+        cursor = cursor_urlsafe and Cursor(urlsafe=cursor_urlsafe)
+        query = None
+        try:
+            query = self.migration_module.get_query()
+        except Exception, e:
+            error_msg = 'error getting query'
+            self.stop_with_error(error_msg, e)
+
+        size = self.migrations_per_task
+
+        result, cursor, more = query.fetch_page(size, start_cursor=cursor)
+        more = self.update_cursor_state(cursor_state, cursor, more)
+        return result, cursor_state, more
+
+    def _run(self, cursor_state):
         if not cursor_state:
             cursor_state = self.init_cursor()
-
         namespace = self.get_namespace(cursor_state)
         if namespace != namespace_manager.get_namespace():
             namespace_manager.set_namespace(namespace)
-
-        if self.has_query:
-            cursor_urlsafe = cursor_state.get('cursor_urlsafe', None)
-            cursor = cursor_urlsafe and Cursor(urlsafe=cursor_urlsafe)
-
-            query = None
-            try:
-                query = self.migration_module.get_query()
-            except Exception, e:
-                error_msg = 'error getting query'
-                self.stop_with_error(error_msg, e)
-
-            size = self.migrations_per_task
-
-            result, cursor, more = query.fetch_page(size, start_cursor=cursor)
-            more = self.update_cursor_state(cursor_state, cursor, more)
-            return result, cursor_state, more
-        else:
+        more = False
+        if self.has_migrate:
+            self.migration_module.migrate()
             more = self.update_cursor_state(cursor_state, None, False)
-            return [None], cursor_state, more
+        elif self.has_query:
+            entities, cursor_state, more = self.fetch(cursor_state)
+            if self.has_migrate_one:
+                for entity in entities:
+                    logging.info('migrating %s...' % entity.key)
+                    self.migration_module.migrate_one(entity)
+            elif self.has_migrate_many:
+                logging.info('migrating %s entities...' % len(entities))
+                self.migration_module.migrate_many(entities)
+            else:
+                raise BaseException('Migracao nao define os metodos necessarios!')
+            logging.info('Total entities migrated: %s' % len(entities))
+        else:
+            raise BaseException('Migracao nao define os metodos necessarios!')
+        return cursor_state, more
 
     def start(self, cursor_state):
         self.dbmigration = DBMigration.find_or_create(self.module_name, self.migration_name, self.migration_description)
 
-        entities, cursor_state, more = self.fetch(cursor_state)
-
-        for entity in entities:
-            ekey = entity.key if entity else None
-            try:
-                logging.info('migrating %s...' % ekey)
-                if self.has_query:
-                    self.migration_module.migrate_one(entity)
-                else:
-                    self.migration_module.migrate()
-            except Exception, e:
-                error_msg = 'error migrating on namespace %s: %s' % (namespace_manager.get_namespace(), ekey)
-                self.stop_with_error(error_msg, e)
-        logging.info('Total entities migrated: %s' % len(entities))
-
-        if more:
-            task_enqueuer.enqueue(task_start_migration,
-                                  queue=settings.MIGRATIONS_QUEUE,
-                                  module_name=self.module_name,
-                                  migration_name=self.migration_name,
-                                  cursor_state=cursor_state,
-                                  ns=self.restrict_ns,
-                                  task_retry_options=NO_RETRY)
-        else:
-            self.finish_migration()
-            _run_pending(self.module, self.restrict_ns)
+        try:
+            cursor_state, more = self._run(cursor_state)
+            if more:
+                task_enqueuer.enqueue(task_start_migration,
+                                      queue=settings.MIGRATIONS_QUEUE,
+                                      module_name=self.module_name,
+                                      migration_name=self.migration_name,
+                                      cursor_state=cursor_state,
+                                      ns=self.restrict_ns,
+                                      task_retry_options=NO_RETRY)
+            else:
+                self.finish_migration()
+                _run_pending(self.module, self.restrict_ns)
+        except Exception, e:
+            error_msg = 'error migrating on namespace %s' % namespace_manager.get_namespace()
+            self.stop_with_error(error_msg, e)
 
     def stop_with_error(self, error_msg, exception):
         stacktrace = traceback.format_exc()
