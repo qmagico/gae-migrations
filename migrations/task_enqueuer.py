@@ -8,7 +8,6 @@ from google.appengine.api import taskqueue
 from google.appengine.api import namespace_manager
 
 
-
 def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
     def _task_add(func_wargs0, path0, queue0, task_args0):
         taskqueue.add(
