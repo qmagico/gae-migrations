@@ -5,6 +5,8 @@ import time
 from google.appengine.api.labs.taskqueue.taskqueue import TransientError
 import settings
 from google.appengine.api import taskqueue
+from google.appengine.api import namespace_manager
+
 
 
 def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
@@ -36,7 +38,7 @@ def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
 
 
 def execute(funcpath, kwargs_json):
-    logging.info('executing task %s(%s)' % (funcpath, kwargs_json))
+    logging.info('executing task on namespace %s: %s(%s)' % (namespace_manager.get_namespace(), funcpath, kwargs_json))
     kwargs = json.loads(kwargs_json)
     module_list = funcpath.split('.')
     module_name = '.'.join(module_list[0:-1])
