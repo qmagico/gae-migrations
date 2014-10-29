@@ -2,10 +2,13 @@ import json
 import logging
 import importlib
 import time
-from google.appengine.api.labs.taskqueue.taskqueue import TransientError
+from google.appengine.api.labs.taskqueue.taskqueue import TransientError, TaskRetryOptions
 import settings
 from google.appengine.api import taskqueue
 from google.appengine.api import namespace_manager
+
+
+NO_RETRY = TaskRetryOptions(task_retry_limit=0)
 
 
 def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
@@ -27,7 +30,8 @@ def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
             task_args[key[5:]] = kwargs[key]
         else:
             func_wargs[key] = kwargs[key]
-
+    if not 'retry_options' in task_args:
+        task_args['retry_options'] = NO_RETRY
     try:
         _task_add(func_wargs, path, queue, task_args)
     except TransientError, e:
