@@ -4,15 +4,31 @@ import importlib
 import time
 from google.appengine.api.labs.taskqueue.taskqueue import TransientError, TaskRetryOptions
 import settings
-from google.appengine.api import taskqueue
+from google.appengine.api import taskqueue, app_identity
 from google.appengine.api import namespace_manager
+import traceback
+from google.appengine.api import mail
 
 
 NO_RETRY = TaskRetryOptions(task_retry_limit=0)
+ERROR_MAIL_BODY_TMPL = """
+--------------------------
+TASK:
+%s(%s)
+
+--------------------------
+ERROR
+%s
+
+--------------------------
+STACK
+%s
+"""
 
 
 def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
     def _task_add(func_wargs0, path0, queue0, task_args0):
+        logging.info('enqueuing task on namespace %s: %s(%s)' % (namespace_manager.get_namespace(), path0, func_wargs0))
         taskqueue.add(
             url=settings.TASKS_RUNNER_URL,
             queue_name=queue0,
@@ -42,15 +58,38 @@ def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
 
 def execute(funcpath, kwargs_json):
     logging.info('executing task on namespace %s: %s(%s)' % (namespace_manager.get_namespace(), funcpath, kwargs_json))
-    kwargs = json.loads(kwargs_json)
-    module_list = funcpath.split('.')
-    module_name = '.'.join(module_list[0:-1])
-    function_name = module_list[-1]
-    module = importlib.import_module(module_name)
-    function = getattr(module, function_name)
-    if isinstance(kwargs, dict):
-        function(**kwargs)
-    elif isinstance(kwargs, list):
-        function(*kwargs)
-    else:
-        function(kwargs)
+    try:
+        kwargs = json.loads(kwargs_json)
+        module_list = funcpath.split('.')
+        module_name = '.'.join(module_list[0:-1])
+        function_name = module_list[-1]
+        module = importlib.import_module(module_name)
+        function = getattr(module, function_name)
+        if isinstance(kwargs, dict):
+            function(**kwargs)
+        elif isinstance(kwargs, list):
+            function(*kwargs)
+        else:
+            function(kwargs)
+    except BaseException as e:
+        errmsg = 'Task error: %s' % e
+        stacktrace = traceback.format_exc()
+        logging.error(errmsg)
+        logging.error(stacktrace)
+        if hasattr(settings, 'TASKS_ERROR_NOTIFY_MAIL'):
+            _notify_error(funcpath, kwargs_json, e, stacktrace)
+        raise e
+
+
+def _notify_error(funcpath, kwargs_json, e, stacktrace):
+    appid = app_identity.get_application_id()
+    subject = 'Error executing task on namespace: %s/%s: %s' % (appid, namespace_manager.get_namespace(), funcpath)
+    body = ERROR_MAIL_BODY_TMPL % (funcpath, kwargs_json, e, stacktrace)
+    to = settings.TASKS_ERROR_NOTIFY_MAIL['to']
+    if not isinstance(to, list):
+        to = [to]
+    mail.send_mail(
+        sender=settings.TASKS_ERROR_NOTIFY_MAIL['from'],
+        to=to,
+        subject=subject,
+        body=body)

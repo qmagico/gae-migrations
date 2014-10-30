@@ -16,6 +16,12 @@ Migrations can be ran on all namespaces or on a single namespace.
 TASKS_QUEUE = 'DEFAULT'  # Some queue name to run tasks, if you want to use task_enqueuer in your app
 MIGRATIONS_QUEUE = 'migrations'  # Queue name to run migrations
 TASKS_RUNNER_URL = '/run_generic_task'  # A URL for task_enqueuer
+
+# Optional
+TASKS_ERROR_NOTIFY_MAIL = {  # notify people in case of an error
+    'from': 'from@yourdomain.com',
+    'to': 'developers@yourdomain.com',
+}
 ```
 
 #### 3. Register the task handler on your `app.yaml`:
