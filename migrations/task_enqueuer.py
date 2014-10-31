@@ -10,7 +10,10 @@ import traceback
 from google.appengine.api import mail
 
 
-NO_RETRY = TaskRetryOptions(task_retry_limit=0)
+NO_RETRY = TaskRetryOptions(task_retry_limit=0, task_age_limit=1)
+DEFAULT_COUNTDOWN = 1
+# See http://stackoverflow.com/questions/26657605/appengine-runs-failed-tasks-twice-even-if-task-retry-limit-0
+
 ERROR_MAIL_BODY_TMPL = """
 --------------------------
 TASK:
@@ -48,6 +51,8 @@ def enqueue(function, queue=settings.TASKS_QUEUE, **kwargs):
             func_wargs[key] = kwargs[key]
     if not 'retry_options' in task_args:
         task_args['retry_options'] = NO_RETRY
+    if not 'countdown' in task_args:
+        task_args['countdown'] = DEFAULT_COUNTDOWN
     try:
         _task_add(func_wargs, path, queue, task_args)
     except TransientError, e:
