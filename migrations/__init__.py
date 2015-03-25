@@ -1,3 +1,4 @@
+# coding: utf-8
 import importlib
 import pkgutil
 from migrations import task_enqueuer
@@ -15,8 +16,8 @@ import traceback
 NO_RETRY = TaskRetryOptions(task_retry_limit=0)
 
 
-def run_pending(module):
-    return _run_pending(module)
+def run_pending(module, ns=None):
+    return _run_pending(module, ns)
 
 
 def run_all(module, ns=None):
@@ -35,6 +36,10 @@ def _module_and_name(module):
     else:
         raise BaseException('Tah de brincation with me, cara?')
     return module, module_name
+
+
+def select_namespaces2run():
+    return get_namespaces()
 
 
 def _run_pending(module, ns=None):
@@ -108,7 +113,7 @@ class Migrator(object):
 
     def init_cursor(self):
         cursor_state = {
-            'namespaces': [n for n in get_namespaces() if n],
+            'namespaces': [n for n in select_namespaces2run() if n],
             'namespace_index': 0,
             'cursor_urlsafe': None,
         }
@@ -153,7 +158,7 @@ class Migrator(object):
         namespace = self.get_namespace(cursor_state)
         if namespace != namespace_manager.get_namespace():
             namespace_manager.set_namespace(namespace)
-        more = False
+        logging.info('INICIANDO: NS=%s, migration=%s' % (namespace, self.migration_name))
         if self.has_migrate:
             self.migration_module.migrate()
             more = self.update_cursor_state(cursor_state, None, False)
@@ -164,8 +169,9 @@ class Migrator(object):
                     logging.info('migrating %s...' % entity.key)
                     self.migration_module.migrate_one(entity)
             elif self.has_migrate_many:
-                logging.info('migrating %s entities...' % len(entities))
-                self.migration_module.migrate_many(entities)
+                if(len(entities) > 0):
+                    logging.info('migrating %s entities...' % len(entities))
+                    self.migration_module.migrate_many(entities)
             else:
                 raise BaseException('Migracao nao define os metodos necessarios!')
             logging.info('Total entities migrated: %s' % len(entities))
