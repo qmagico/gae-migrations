@@ -110,6 +110,7 @@ class Migrator(object):
         self.has_migrate = hasattr(self.migration_module, 'migrate')
         self.has_migrate_one = hasattr(self.migration_module, 'migrate_one')
         self.has_migrate_many = hasattr(self.migration_module, 'migrate_many')
+        self.has_update_json_data = hasattr(self.migration_module, 'update_json_data')
 
     def init_cursor(self):
         cursor_state = {
@@ -160,23 +161,27 @@ class Migrator(object):
             namespace_manager.set_namespace(namespace)
         logging.info('INICIANDO: NS=%s, migration=%s' % (namespace, self.migration_name))
         if self.has_migrate:
-            self.migration_module.migrate()
+            migrate_result = self.migration_module.migrate()
             more = self.update_cursor_state(cursor_state, None, False)
         elif self.has_query:
             entities, cursor_state, more = self.fetch(cursor_state)
             if self.has_migrate_one:
                 for entity in entities:
                     logging.info('migrating %s...' % entity.key)
-                    self.migration_module.migrate_one(entity)
+                    migrate_result = self.migration_module.migrate_one(entity)
             elif self.has_migrate_many:
-                if(len(entities) > 0):
+                if len(entities) > 0:
                     logging.info('migrating %s entities...' % len(entities))
-                    self.migration_module.migrate_many(entities)
+                    migrate_result = self.migration_module.migrate_many(entities)
             else:
                 raise BaseException('Migracao nao define os metodos necessarios!')
             logging.info('Total entities migrated: %s' % len(entities))
         else:
             raise BaseException('Migracao nao define os metodos necessarios!')
+        if migrate_result and self.has_update_json_data:
+            self.dbmigration.json_data = self.migration_module.update_json_data(migrate_result,
+                                                                                self.dbmigration.json_data)
+            self.dbmigration.put()
         return cursor_state, more
 
     def start(self, cursor_state):

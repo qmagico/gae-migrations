@@ -5,6 +5,7 @@ from test_utils import GAETestCase
 from my.models import QueDoidura
 from google.appengine.api import taskqueue, namespace_manager
 import my.migrations_run_twice
+import json
 
 
 class TestRunAllMigrations(GAETestCase):
@@ -23,6 +24,7 @@ class TestRunAllMigrations(GAETestCase):
 
         self._old_task_add = taskqueue.add
         taskqueue.add = run_pending_tests.sync_task_add
+
 
     def tearDown(self):
         GAETestCase.tearDown(self)
@@ -90,6 +92,24 @@ class TestRunAllMigrations(GAETestCase):
         qds = QueDoidura.query().order(QueDoidura.v1).fetch()
         self.assertEqual(60, qds[0].v1)
         self.assertEqual(66, qds[1].v1)
+
+
+    def test_update_json_data(self):
+        # Roda as migracoes
+        migrations.run_all(my.migrations)
+        namespace_manager.set_namespace('')
+        dbmigration = DBMigration.query(DBMigration.module == 'my.migrations', DBMigration.status == 'DONE',
+                          DBMigration.description == 'multiplica por 2').get()
+        dbmig_json_data = json.loads(dbmigration.json_data)
+        self.assertIn('v1_for_namespace', dbmig_json_data)
+        self.assertIn('ns1', dbmig_json_data['v1_for_namespace'])
+        self.assertIn(3, dbmig_json_data['v1_for_namespace']['ns1'])
+        self.assertIn(4, dbmig_json_data['v1_for_namespace']['ns1'])
+        self.assertIn(5, dbmig_json_data['v1_for_namespace']['ns1'])
+        self.assertIn('ns2', dbmig_json_data['v1_for_namespace'])
+        self.assertIn(10, dbmig_json_data['v1_for_namespace']['ns2'])
+        self.assertIn(11, dbmig_json_data['v1_for_namespace']['ns2'])
+
 
     def test_cannot_start_if_something_is_running(self):
         namespace_manager.set_namespace('')

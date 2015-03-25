@@ -16,6 +16,7 @@ class DBMigration(ndb.Model):
     last_update = ndb.DateTimeProperty(auto_now=True)
     error_msg = ndb.TextProperty()
     stacktrace = ndb.TextProperty()
+    json_data = ndb.TextProperty()
 
     @classmethod
     def find_or_create(cls, module, name, description):
