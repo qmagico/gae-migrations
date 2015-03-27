@@ -173,6 +173,8 @@ class Migrator(object):
                 if len(entities) > 0:
                     logging.info('migrating %s entities...' % len(entities))
                     migrate_result = self.migration_module.migrate_many(entities)
+                else:
+                    migrate_result = None
             else:
                 raise BaseException('Migracao nao define os metodos necessarios!')
             logging.info('Total entities migrated: %s' % len(entities))
