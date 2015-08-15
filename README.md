@@ -43,6 +43,7 @@ There are different functions and attributes that a migration can have. Read on
 * DESCRIPTION - A description for the migration
 * MIGRATIONS_PER_TASK - How many entities should be migrated per single task run (only use this if you define `get_query()`)
 * RESTRICT_NAMESPACE - Only run this task on the specified namespace
+* MIGRATE_EMPTY - Migrate, even though you have no entities matching the query in that Namespace, default: False
 
 ##### 4.2 Migration functions
 
@@ -50,6 +51,9 @@ There are different functions and attributes that a migration can have. Read on
 * migrate_one(entity) - Perform migration on a single entity
 * migrate_many(entities) - Perform migration on an array of entities
 * migrate() - Just run the migration
+* update_json_data(migrate_result, actual_json_data) - if your migration requires some previous data from other interactions 
+you might return something from either migrate, migrate_one or migrate_many functions that you will have access to it after each interaction to 
+update your migration.json_data based on this migrate_result and the actual_json_data.
 
 If you implement `get_query`, you should also implement `migrate_one` or `migrate_many`. Otherwise, you must implement `migrate`.
 
