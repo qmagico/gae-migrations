@@ -105,7 +105,6 @@ class Migrator(object):
         self.migration_name = migration_module.__name__.split('.')[-1]
         self.migration_description = getattr(migration_module, 'DESCRIPTION', '')
         self.migrations_per_task = getattr(migration_module, 'MIGRATIONS_PER_TASK', 1000)
-        self.migrate_empty = getattr(self.migration_module, 'MIGRATE_EMPTY', False)
         self.restrict_ns = None
         self.has_query = hasattr(self.migration_module, 'get_query')
         self.has_migrate = hasattr(self.migration_module, 'migrate')
@@ -115,7 +114,7 @@ class Migrator(object):
 
     def init_cursor(self):
         cursor_state = {
-            'namespaces': [n for n in select_namespaces2run()],
+            'namespaces': [n for n in select_namespaces2run() if n],
             'namespace_index': 0,
             'cursor_urlsafe': None,
         }
@@ -144,7 +143,7 @@ class Migrator(object):
         query = None
         try:
             query = self.migration_module.get_query()
-        except Exception, e:
+        except BaseException, e:
             error_msg = 'error getting query'
             self.stop_with_error(error_msg, e)
 
@@ -172,7 +171,7 @@ class Migrator(object):
                     logging.info('migrating %s...' % entity.key)
                     migrate_result = self.migration_module.migrate_one(entity)
             elif self.has_migrate_many:
-                if len(entities) > 0 or self.migrate_empty:
+                if len(entities) > 0:
                     logging.info('migrating %s entities...' % len(entities))
                     migrate_result = self.migration_module.migrate_many(entities)
                 else:
@@ -204,7 +203,9 @@ class Migrator(object):
             else:
                 self.finish_migration()
                 _run_pending(self.module, self.restrict_ns)
-        except Exception, e:
+        except MigrationException:
+            pass
+        except BaseException, e:
             error_msg = 'error migrating on namespace %s' % namespace_manager.get_namespace()
             self.stop_with_error(error_msg, e)
 

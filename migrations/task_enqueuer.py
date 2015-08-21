@@ -4,10 +4,9 @@ import importlib
 import time
 from google.appengine.api.labs.taskqueue.taskqueue import TransientError, TaskRetryOptions
 import settings
-from google.appengine.api import taskqueue, app_identity
+from google.appengine.api import taskqueue
 from google.appengine.api import namespace_manager
 import traceback
-from google.appengine.api import mail
 
 
 NO_RETRY = TaskRetryOptions(task_retry_limit=0, task_age_limit=1)
@@ -81,20 +80,4 @@ def execute(funcpath, kwargs_json):
         stacktrace = traceback.format_exc()
         logging.error(errmsg)
         logging.error(stacktrace)
-        if hasattr(settings, 'TASKS_ERROR_NOTIFY_MAIL'):
-            _notify_error(funcpath, kwargs_json, e, stacktrace)
         raise e
-
-
-def _notify_error(funcpath, kwargs_json, e, stacktrace):
-    appid = app_identity.get_application_id()
-    subject = 'Error executing task on namespace: %s/%s: %s' % (appid, namespace_manager.get_namespace(), funcpath)
-    body = ERROR_MAIL_BODY_TMPL % (funcpath, kwargs_json, e, stacktrace)
-    to = settings.TASKS_ERROR_NOTIFY_MAIL['to']
-    if not isinstance(to, list):
-        to = [to]
-    mail.send_mail(
-        sender=settings.TASKS_ERROR_NOTIFY_MAIL['from'],
-        to=to,
-        subject=subject,
-        body=body)
