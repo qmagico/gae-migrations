@@ -105,6 +105,7 @@ class Migrator(object):
         self.migration_name = migration_module.__name__.split('.')[-1]
         self.migration_description = getattr(migration_module, 'DESCRIPTION', '')
         self.migrations_per_task = getattr(migration_module, 'MIGRATIONS_PER_TASK', 1000)
+        self.migrate_empty = getattr(self.migration_module, 'MIGRATE_EMPTY', False)
         self.restrict_ns = None
         self.has_query = hasattr(self.migration_module, 'get_query')
         self.has_migrate = hasattr(self.migration_module, 'migrate')
@@ -114,7 +115,7 @@ class Migrator(object):
 
     def init_cursor(self):
         cursor_state = {
-            'namespaces': [n for n in select_namespaces2run() if n],
+            'namespaces': [n for n in select_namespaces2run()],
             'namespace_index': 0,
             'cursor_urlsafe': None,
         }
@@ -166,14 +167,15 @@ class Migrator(object):
             more = self.update_cursor_state(cursor_state, None, False)
         elif self.has_query:
             entities, cursor_state, more = self.fetch(cursor_state)
+            kwargs = {'cursor': cursor_state, 'more': more}
             if self.has_migrate_one:
                 for entity in entities:
                     logging.info('migrating %s...' % entity.key)
-                    migrate_result = self.migration_module.migrate_one(entity)
+                    migrate_result = self.migration_module.migrate_one(entity, **kwargs)
             elif self.has_migrate_many:
-                if len(entities) > 0:
+                if len(entities) > 0 or self.migrate_empty:
                     logging.info('migrating %s entities...' % len(entities))
-                    migrate_result = self.migration_module.migrate_many(entities)
+                    migrate_result = self.migration_module.migrate_many(entities, **kwargs)
                 else:
                     migrate_result = None
             else:
