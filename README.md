@@ -3,7 +3,7 @@ gae-migrations
 
 DISCONTINUATION NOTICE
 ----------------------
-This project is officialy discontinued and most likely won't be receiving any commits soon.
+This project is officialy discontinued and most likely won't be receiving commits anymore.
 ----------------------
 
 
