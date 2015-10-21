@@ -1,11 +1,14 @@
 gae-migrations
 ==============
 
-DISCONTINUATION NOTICE
-----------------------
-This project is officialy discontinued and most likely won't be receiving commits anymore.
-----------------------
-
+```txt
+=================================
+      DISCONTINUATION NOTICE
+=================================
+This project is officialy discontinued 
+and most likely won't be receiving 
+commits anymore.
+```
 
 This is a framework for long-running tasks on Google Appengine.
 It can be used to run "[south like](http://south.readthedocs.org/en/latest)" migrations, which run once on a lifetime, but one can also use it to run periodic jobs.
